@@ -62,53 +62,113 @@ KNOWN_CHARACTERS = {
     "roy": "Fullmetal Alchemist anime, dark-haired flame alchemist in military blue uniform",
 }
 
-def detect_style(name1: str, name2: str) -> str:
-    """
-    Infer the visual style from character names.
-    Returns a style descriptor string for the prompt.
-    """
-    n1 = name1.lower().strip()
-    n2 = name2.lower().strip()
+ANIMALS = {
+    "cat", "kitten", "kitty", "dog", "puppy", "doggo", "wolf", "fox", "bear",
+    "lion", "tiger", "leopard", "cheetah", "jaguar", "panther", "panda",
+    "rabbit", "bunny", "hamster", "guinea pig", "ferret", "otter", "raccoon",
+    "bird", "parrot", "owl", "eagle", "hawk", "falcon", "penguin", "duck",
+    "horse", "pony", "unicorn", "deer", "elk", "moose", "giraffe", "elephant",
+    "snake", "lizard", "dragon", "turtle", "frog", "fish", "shark", "whale",
+    "dolphin", "octopus", "crab", "spider", "butterfly", "bee",
+}
 
-    desc1 = KNOWN_CHARACTERS.get(n1, "")
-    desc2 = KNOWN_CHARACTERS.get(n2, "")
+REAL_PEOPLE_HINTS = {
+    "man", "woman", "person", "human", "guy", "girl", "boy", "lady",
+    "president", "king", "queen", "prince", "princess",
+}
 
-    # If both known and from same franchise, use that style
-    if desc1 and desc2:
-        style = "detailed anime illustration style matching the source material"
-    elif desc1 or desc2:
-        style = "anime illustration style"
-    else:
-        # Unknown characters — go neutral / realistic
-        style = "highly detailed digital illustration, realistic proportions, cinematic concept art style"
+def classify_subject(name: str) -> str:
+    """Returns 'anime_char', 'animal', 'real', or 'unknown'."""
+    n = name.lower().strip()
+    if n in KNOWN_CHARACTERS:
+        return "anime_char"
+    # Check if name contains any animal word
+    for animal in ANIMALS:
+        if animal in n:
+            return "animal"
+    for hint in REAL_PEOPLE_HINTS:
+        if hint in n:
+            return "real"
+    return "unknown"
 
-    return desc1, desc2, style
+
+def build_prompt(name1: str, name2: str) -> str:
+    kind1 = classify_subject(name1)
+    kind2 = classify_subject(name2)
+    desc1 = KNOWN_CHARACTERS.get(name1.lower().strip(), "")
+    desc2 = KNOWN_CHARACTERS.get(name2.lower().strip(), "")
+
+    # Both animals
+    if kind1 == "animal" and kind2 == "animal":
+        return (
+            f"A single hybrid creature that is a perfect biological fusion of a {name1} and a {name2}. "
+            f"The creature naturally combines physical features of both animals: "
+            f"body shape, fur/feather/scale patterns, coloring, face, ears, tail, and limbs "
+            f"blended seamlessly into one coherent animal. "
+            f"Photorealistic wildlife photography style, natural environment, "
+            f"soft natural lighting, highly detailed, sharp focus, beautiful creature portrait."
+        )
+
+    # One animal, one anime char
+    if (kind1 == "animal") != (kind2 == "animal"):
+        animal = name1 if kind1 == "animal" else name2
+        char = name2 if kind1 == "animal" else name1
+        char_desc = desc1 if kind2 == "animal" else desc2
+        char_info = f"{char} ({char_desc})" if char_desc else char
+        return (
+            f"An anthropomorphic {animal}-person fusion character inspired by {char_info}. "
+            f"The character has {animal} features (ears, tail, fur markings, eyes) "
+            f"blended with the outfit, colors, and visual style of {char}. "
+            f"Full-body illustration, detailed character design, clean art style. "
+            f"High quality digital illustration."
+        )
+
+    # Both known anime characters
+    if kind1 == "anime_char" and kind2 == "anime_char":
+        return (
+            f"A fusion of two anime characters merged into one single being. "
+            f"Character 1: {name1} ({desc1}). Character 2: {name2} ({desc2}). "
+            f"The fusion blends their hair styles, hair colors, outfit colors and patterns, "
+            f"facial features, and signature accessories into ONE coherent unified character. "
+            f"The result clearly feels like a natural blend of both originals. "
+            f"Dynamic full-body pose, dramatic lighting. "
+            f"Detailed anime illustration style matching the source material. High quality, sharp."
+        )
+
+    # One known anime char + unknown
+    if kind1 == "anime_char" or kind2 == "anime_char":
+        known_desc = desc1 if kind1 == "anime_char" else desc2
+        known_name = name1 if kind1 == "anime_char" else name2
+        other_name = name2 if kind1 == "anime_char" else name1
+        return (
+            f"A fusion character merging {known_name} ({known_desc}) with {other_name}. "
+            f"Combine their visual features: hair, outfit colors, facial features, accessories "
+            f"into one unified character design. "
+            f"Anime illustration style. Full-body pose, dramatic lighting, high quality."
+        )
+
+    # Both real people / humans
+    if kind1 == "real" or kind2 == "real":
+        return (
+            f"A realistic portrait of a single person who is a visual fusion of '{name1}' and '{name2}'. "
+            f"The face and appearance naturally blends features of both people: "
+            f"facial structure, skin tone, hair color and style, expression. "
+            f"Photorealistic portrait photography, studio lighting, high detail, sharp."
+        )
+
+    # Fully unknown — generic smart fusion
+    return (
+        f"A creative fusion of '{name1}' and '{name2}' merged into one single entity. "
+        f"Naturally blend the visual characteristics, colors, shapes, and defining features "
+        f"of both into one coherent design. "
+        f"The result should clearly feel like a blend of both originals. "
+        f"Dramatic lighting, visually striking full-body composition. "
+        f"Highly detailed digital illustration, cinematic quality, sharp."
+    )
 
 
 def generate_fusion_image(name1: str, name2: str) -> bytes:
-    desc1, desc2, style = detect_style(name1, name2)
-
-    if desc1 and desc2:
-        char_context = (
-            f"Character 1 is '{name1}' ({desc1}). "
-            f"Character 2 is '{name2}' ({desc2}). "
-        )
-    elif desc1:
-        char_context = f"Character 1 is '{name1}' ({desc1}). Character 2 is '{name2}'. "
-    elif desc2:
-        char_context = f"Character 1 is '{name1}'. Character 2 is '{name2}' ({desc2}). "
-    else:
-        char_context = f"Character 1 is '{name1}'. Character 2 is '{name2}'. "
-
-    prompt = (
-        f"A fusion of two characters merged into one single being. {char_context}"
-        f"The fusion combines their most iconic visual features: "
-        f"blending hair styles, hair colors, outfit colors and patterns, "
-        f"facial features, and signature accessories into ONE coherent unified character design. "
-        f"The result should clearly feel like a blend of both originals. "
-        f"Dynamic full-body portrait pose, dramatic lighting, visually striking composition. "
-        f"{style}. High quality, detailed, sharp."
-    )
+    prompt = build_prompt(name1, name2)
 
     encoded_prompt = urllib.parse.quote(prompt)
     seed = abs(hash(name1 + name2)) % 999999
