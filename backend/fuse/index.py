@@ -18,16 +18,98 @@ CORS_HEADERS = {
 }
 
 
+KNOWN_CHARACTERS = {
+    # Dragon Ball
+    "goku": "Dragon Ball Z anime, Saiyan warrior with spiky black hair, orange gi",
+    "vegeta": "Dragon Ball Z anime, Saiyan prince with widow's peak black hair, blue spandex armor",
+    "gohan": "Dragon Ball Z anime, half-Saiyan with black hair, scholar fighter",
+    "frieza": "Dragon Ball Z anime, alien emperor, white and purple sleek body",
+    "piccolo": "Dragon Ball Z anime, green-skinned Namekian with white turban and cape",
+    # Naruto
+    "naruto": "Naruto anime, ninja with spiky blond hair, orange jumpsuit, whisker marks on cheeks",
+    "sasuke": "Naruto anime, dark-haired ninja in dark blue clothes, Sharingan eye",
+    "sakura": "Naruto anime, pink-haired kunoichi in red outfit",
+    "kakashi": "Naruto anime, silver-haired ninja with mask and Sharingan",
+    "itachi": "Naruto anime, dark-haired ninja in black Akatsuki robe with red clouds",
+    # One Piece
+    "luffy": "One Piece anime, rubber pirate with straw hat, red vest, black hair",
+    "zoro": "One Piece anime, green-haired swordsman with three swords, white shirt",
+    "nami": "One Piece anime, orange-haired navigator with staff",
+    "sanji": "One Piece anime, blond chef in black suit with curly eyebrow",
+    # Bleach
+    "ichigo": "Bleach anime, spiky orange-haired Soul Reaper in black shihakusho with large zanpakuto",
+    "rukia": "Bleach anime, short black-haired Soul Reaper in white captain's haori",
+    # Demon Slayer
+    "tanjiro": "Demon Slayer anime, boy with dark red hair in checkered haori with Nichirin blade",
+    "nezuko": "Demon Slayer anime, girl with pink-tipped black hair, bamboo muzzle, pink kimono",
+    "zenitsu": "Demon Slayer anime, blond boy in yellow haori with lightning powers",
+    # Attack on Titan
+    "eren": "Attack on Titan anime, brown-haired soldier in Survey Corps uniform with ODM gear",
+    "levi": "Attack on Titan anime, short black-haired captain in Survey Corps cloak",
+    # My Hero Academia
+    "deku": "My Hero Academia anime, green-haired boy in green rabbit-eared hero costume",
+    "bakugo": "My Hero Academia anime, spiky blond with explosive hero costume, fierce expression",
+    "todoroki": "My Hero Academia anime, half red half white hair, burn scar, fire and ice powers",
+    # One Punch Man
+    "saitama": "One Punch Man anime, bald hero in plain yellow jumpsuit and white cape",
+    "genos": "One Punch Man anime, cyborg with blond hair, mechanical arms, black bodysuit",
+    # Jujutsu Kaisen
+    "gojo": "Jujutsu Kaisen anime, tall sorcerer with white hair, blindfold, casual black outfit",
+    "yuji": "Jujutsu Kaisen anime, pink-haired stocky fighter in dark school uniform",
+    # Other
+    "spike": "Cowboy Bebop anime, tall lanky bounty hunter with dark green afro, yellow suit",
+    "edward": "Fullmetal Alchemist anime, blond alchemist with red coat and automail arm",
+    "roy": "Fullmetal Alchemist anime, dark-haired flame alchemist in military blue uniform",
+}
+
+def detect_style(name1: str, name2: str) -> str:
+    """
+    Infer the visual style from character names.
+    Returns a style descriptor string for the prompt.
+    """
+    n1 = name1.lower().strip()
+    n2 = name2.lower().strip()
+
+    desc1 = KNOWN_CHARACTERS.get(n1, "")
+    desc2 = KNOWN_CHARACTERS.get(n2, "")
+
+    # If both known and from same franchise, use that style
+    if desc1 and desc2:
+        style = "detailed anime illustration style matching the source material"
+    elif desc1 or desc2:
+        style = "anime illustration style"
+    else:
+        # Unknown characters — go neutral / realistic
+        style = "highly detailed digital illustration, realistic proportions, cinematic concept art style"
+
+    return desc1, desc2, style
+
+
 def generate_fusion_image(name1: str, name2: str) -> bytes:
+    desc1, desc2, style = detect_style(name1, name2)
+
+    if desc1 and desc2:
+        char_context = (
+            f"Character 1 is '{name1}' ({desc1}). "
+            f"Character 2 is '{name2}' ({desc2}). "
+        )
+    elif desc1:
+        char_context = f"Character 1 is '{name1}' ({desc1}). Character 2 is '{name2}'. "
+    elif desc2:
+        char_context = f"Character 1 is '{name1}'. Character 2 is '{name2}' ({desc2}). "
+    else:
+        char_context = f"Character 1 is '{name1}'. Character 2 is '{name2}'. "
+
     prompt = (
-        f"Create a single epic anime fusion character that perfectly combines "
-        f"the visual traits of '{name1}' and '{name2}'. "
-        f"Merge their distinctive features: hair color, hair style, costume colors, "
-        f"facial features, and signature accessories into ONE unified powerful warrior. "
-        f"Dynamic full-body pose, intense golden ki energy aura with lightning effects, "
-        f"dark cosmic background with energy particles. "
-        f"Dragon Ball Z anime art style, cel-shaded, highly detailed, cinematic quality."
+        f"A fusion of two characters merged into one single being. {char_context}"
+        f"The fusion combines their most iconic visual features: "
+        f"blending hair styles, hair colors, outfit colors and patterns, "
+        f"facial features, and signature accessories into ONE coherent unified character design. "
+        f"The result should clearly feel like a blend of both originals. "
+        f"Dynamic full-body portrait pose, dramatic lighting, visually striking composition. "
+        f"{style}. High quality, detailed, sharp."
     )
+
     encoded_prompt = urllib.parse.quote(prompt)
     seed = abs(hash(name1 + name2)) % 999999
 
