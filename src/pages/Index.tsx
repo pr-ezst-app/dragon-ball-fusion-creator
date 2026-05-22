@@ -9,6 +9,7 @@ type Page = "home" | "generator";
 
 interface CharSlot {
   name: string;
+  species: string;
   previewUrl: string | null;
   b64: string | null;
 }
@@ -134,7 +135,7 @@ function UploadSlot({
       {/* Name input */}
       <input
         type="text"
-        placeholder="Character name..."
+        placeholder="Name (e.g. Goku, my cat...)"
         value={slot.name}
         onChange={(e) => onChange({ ...slot, name: e.target.value })}
         className="w-full px-4 py-3 rounded-xl font-rajdhani font-semibold text-base outline-none transition-all"
@@ -144,6 +145,28 @@ function UploadSlot({
           color: slot.name ? color : "rgba(255,255,255,0.5)",
         }}
       />
+
+      {/* Species input */}
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Species / type  (e.g. cat, anime ninja, dragon...)"
+          value={slot.species}
+          onChange={(e) => onChange({ ...slot, species: e.target.value })}
+          className="w-full px-4 py-2.5 rounded-xl font-rajdhani text-sm outline-none transition-all"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: `1px solid ${slot.species ? color + "40" : "rgba(255,255,255,0.07)"}`,
+            color: slot.species ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)",
+          }}
+        />
+        <span
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-rajdhani pointer-events-none"
+          style={{ color: "rgba(255,255,255,0.2)" }}
+        >
+          optional
+        </span>
+      </div>
     </div>
   );
 }
@@ -151,8 +174,8 @@ function UploadSlot({
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
 
-  const [slot1, setSlot1] = useState<CharSlot>({ name: "", previewUrl: null, b64: null });
-  const [slot2, setSlot2] = useState<CharSlot>({ name: "", previewUrl: null, b64: null });
+  const [slot1, setSlot1] = useState<CharSlot>({ name: "", species: "", previewUrl: null, b64: null });
+  const [slot2, setSlot2] = useState<CharSlot>({ name: "", species: "", previewUrl: null, b64: null });
 
   const [fusing, setFusing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -167,8 +190,8 @@ export default function Index() {
   const canFuse = slot1.name.trim() && slot2.name.trim();
 
   const reset = () => {
-    setSlot1({ name: "", previewUrl: null, b64: null });
-    setSlot2({ name: "", previewUrl: null, b64: null });
+    setSlot1({ name: "", species: "", previewUrl: null, b64: null });
+    setSlot2({ name: "", species: "", previewUrl: null, b64: null });
     setResult(null);
     setError(null);
     setProgress(0);
@@ -210,6 +233,8 @@ export default function Index() {
         body: JSON.stringify({
           name1: slot1.name.trim(),
           name2: slot2.name.trim(),
+          species1: slot1.species.trim(),
+          species2: slot2.species.trim(),
           image1: slot1.b64 || "",
           image2: slot2.b64 || "",
         }),

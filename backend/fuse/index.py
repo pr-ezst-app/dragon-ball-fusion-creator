@@ -77,31 +77,41 @@ REAL_PEOPLE_HINTS = {
     "president", "king", "queen", "prince", "princess",
 }
 
-def classify_subject(name: str) -> str:
-    """Returns 'anime_char', 'animal', 'real', or 'unknown'."""
-    n = name.lower().strip()
-    if n in KNOWN_CHARACTERS:
-        return "anime_char"
-    # Check if name contains any animal word
+def classify_subject(name: str, species: str = "") -> str:
+    """Returns 'anime_char', 'animal', 'real', or 'unknown'. Species overrides detection."""
+    # Species field takes priority
+    check = (species or name).lower().strip()
+    if not species:
+        if check in KNOWN_CHARACTERS:
+            return "anime_char"
     for animal in ANIMALS:
-        if animal in n:
+        if animal in check:
             return "animal"
     for hint in REAL_PEOPLE_HINTS:
-        if hint in n:
+        if hint in check:
             return "real"
+    # Fall back to name-only lookup for known anime chars
+    if name.lower().strip() in KNOWN_CHARACTERS:
+        return "anime_char"
     return "unknown"
 
 
-def build_prompt(name1: str, name2: str) -> str:
-    kind1 = classify_subject(name1)
-    kind2 = classify_subject(name2)
+def build_prompt(name1: str, name2: str, species1: str = "", species2: str = "") -> str:
+    kind1 = classify_subject(name1, species1)
+    kind2 = classify_subject(name2, species2)
     desc1 = KNOWN_CHARACTERS.get(name1.lower().strip(), "")
     desc2 = KNOWN_CHARACTERS.get(name2.lower().strip(), "")
 
+    # Build label strings that include species hint when provided
+    label1 = f"{name1} ({species1})" if species1 else name1
+    label2 = f"{name2} ({species2})" if species2 else name2
+
     # Both animals
     if kind1 == "animal" and kind2 == "animal":
+        type1 = species1 or name1
+        type2 = species2 or name2
         return (
-            f"A single hybrid creature that is a perfect biological fusion of a {name1} and a {name2}. "
+            f"A single hybrid creature that is a perfect biological fusion of a {type1} and a {type2}. "
             f"The creature naturally combines physical features of both animals: "
             f"body shape, fur/feather/scale patterns, coloring, face, ears, tail, and limbs "
             f"blended seamlessly into one coherent animal. "
@@ -109,16 +119,16 @@ def build_prompt(name1: str, name2: str) -> str:
             f"soft natural lighting, highly detailed, sharp focus, beautiful creature portrait."
         )
 
-    # One animal, one anime char
+    # One animal, one anime/other char
     if (kind1 == "animal") != (kind2 == "animal"):
-        animal = name1 if kind1 == "animal" else name2
-        char = name2 if kind1 == "animal" else name1
+        animal_label = (species1 or name1) if kind1 == "animal" else (species2 or name2)
+        char_label = label2 if kind1 == "animal" else label1
         char_desc = desc1 if kind2 == "animal" else desc2
-        char_info = f"{char} ({char_desc})" if char_desc else char
+        char_info = f"{char_label} ({char_desc})" if char_desc else char_label
         return (
-            f"An anthropomorphic {animal}-person fusion character inspired by {char_info}. "
-            f"The character has {animal} features (ears, tail, fur markings, eyes) "
-            f"blended with the outfit, colors, and visual style of {char}. "
+            f"An anthropomorphic {animal_label}-person fusion character inspired by {char_info}. "
+            f"The character has {animal_label} features (ears, tail, fur markings, eyes) "
+            f"blended with the outfit, colors, and visual style of {char_label}. "
             f"Full-body illustration, detailed character design, clean art style. "
             f"High quality digital illustration."
         )
@@ -139,9 +149,9 @@ def build_prompt(name1: str, name2: str) -> str:
     if kind1 == "anime_char" or kind2 == "anime_char":
         known_desc = desc1 if kind1 == "anime_char" else desc2
         known_name = name1 if kind1 == "anime_char" else name2
-        other_name = name2 if kind1 == "anime_char" else name1
+        other_label = label2 if kind1 == "anime_char" else label1
         return (
-            f"A fusion character merging {known_name} ({known_desc}) with {other_name}. "
+            f"A fusion character merging {known_name} ({known_desc}) with {other_label}. "
             f"Combine their visual features: hair, outfit colors, facial features, accessories "
             f"into one unified character design. "
             f"Anime illustration style. Full-body pose, dramatic lighting, high quality."
@@ -150,15 +160,17 @@ def build_prompt(name1: str, name2: str) -> str:
     # Both real people / humans
     if kind1 == "real" or kind2 == "real":
         return (
-            f"A realistic portrait of a single person who is a visual fusion of '{name1}' and '{name2}'. "
+            f"A realistic portrait of a single person who is a visual fusion of '{label1}' and '{label2}'. "
             f"The face and appearance naturally blends features of both people: "
             f"facial structure, skin tone, hair color and style, expression. "
             f"Photorealistic portrait photography, studio lighting, high detail, sharp."
         )
 
-    # Fully unknown — generic smart fusion
+    # Fully unknown — use species hints if given, otherwise generic
+    type_hint1 = species1 or name1
+    type_hint2 = species2 or name2
     return (
-        f"A creative fusion of '{name1}' and '{name2}' merged into one single entity. "
+        f"A creative fusion of '{type_hint1}' and '{type_hint2}' merged into one single entity. "
         f"Naturally blend the visual characteristics, colors, shapes, and defining features "
         f"of both into one coherent design. "
         f"The result should clearly feel like a blend of both originals. "
@@ -167,11 +179,11 @@ def build_prompt(name1: str, name2: str) -> str:
     )
 
 
-def generate_fusion_image(name1: str, name2: str) -> bytes:
-    prompt = build_prompt(name1, name2)
+def generate_fusion_image(name1: str, name2: str, species1: str = "", species2: str = "") -> bytes:
+    prompt = build_prompt(name1, name2, species1, species2)
 
     encoded_prompt = urllib.parse.quote(prompt)
-    seed = abs(hash(name1 + name2)) % 999999
+    seed = abs(hash(name1 + name2 + species1 + species2)) % 999999
 
     url = (
         f"https://image.pollinations.ai/prompt/{encoded_prompt}"
@@ -203,8 +215,10 @@ def handler(event: dict, context) -> dict:
     body = json.loads(event.get("body") or "{}")
     name1 = (body.get("name1") or "Character 1").strip()
     name2 = (body.get("name2") or "Character 2").strip()
+    species1 = (body.get("species1") or "").strip()
+    species2 = (body.get("species2") or "").strip()
 
-    image_bytes = generate_fusion_image(name1, name2)
+    image_bytes = generate_fusion_image(name1, name2, species1, species2)
     image_b64 = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("utf-8")
 
     return {
