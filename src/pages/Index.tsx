@@ -1,55 +1,31 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import func2url from "../../backend/func2url.json";
 
 const HERO_IMAGE = "https://cdn.ezst.app/projects/d941eb2a-4f8b-480a-b54f-9e11fc9fb54d/files/3ab7290c-b0fb-44de-91a7-801f0c881922.jpg";
+const FUSE_URL = func2url.fuse;
 
-const CHARACTERS = [
-  { id: 1, name: "Goku", power: 9000, type: "Saiyan", color: "#f5a623", emoji: "🔥", traits: ["Super Strength", "Kamehameha", "Ki Mastery"] },
-  { id: 2, name: "Vegeta", power: 8800, type: "Saiyan Prince", color: "#ff6b1a", emoji: "⚡", traits: ["Royal Pride", "Galick Gun", "Elite Combat"] },
-  { id: 3, name: "Naruto", power: 7500, type: "Jinchūriki", color: "#ff9500", emoji: "🌀", traits: ["Nine-Tails", "Shadow Clones", "Rasengan"] },
-  { id: 4, name: "Ichigo", power: 7800, type: "Soul Reaper", color: "#8b5cf6", emoji: "🌙", traits: ["Bankai", "Hollow Power", "Getsuga Tenshō"] },
-  { id: 5, name: "Saitama", power: 99999, type: "Hero", color: "#00d4ff", emoji: "👊", traits: ["One Punch", "Limitless Power", "Unbreakable"] },
-  { id: 6, name: "Gojo", power: 9500, type: "Sorcerer", color: "#a855f7", emoji: "♾️", traits: ["Infinity", "Six Eyes", "Blue & Red"] },
-  { id: 7, name: "Zoro", power: 7200, type: "Swordsman", color: "#22c55e", emoji: "⚔️", traits: ["Three Sword Style", "Haki", "Demon Ashura"] },
-  { id: 8, name: "Luffy", power: 8200, type: "Pirate King", color: "#ef4444", emoji: "🌊", traits: ["Gear 5", "Devil Fruit", "Conqueror's Haki"] },
-];
+type Page = "home" | "generator";
 
-const FUSION_NAMES: [string, string, string][] = [
-  ["Goku", "Vegeta", "Vegito"],
-  ["Goku", "Naruto", "Naroku"],
-  ["Goku", "Ichigo", "Ichiku"],
-  ["Goku", "Saitama", "Saitaku"],
-  ["Vegeta", "Naruto", "Narveta"],
-  ["Vegeta", "Ichigo", "Vegigo"],
-  ["Naruto", "Ichigo", "Narugo"],
-  ["Saitama", "Gojo", "Saitojo"],
-  ["Zoro", "Luffy", "Zoffy"],
-];
-
-function getFusionName(a: string, b: string): string {
-  const pair = FUSION_NAMES.find(
-    ([x, y]) => (x === a && y === b) || (x === b && y === a)
-  );
-  if (pair) return pair[2];
-  const half1 = a.slice(0, Math.ceil(a.length / 2));
-  const half2 = b.slice(Math.floor(b.length / 2));
-  return half1 + half2;
+interface CharSlot {
+  name: string;
+  previewUrl: string | null;
+  b64: string | null;
 }
 
-function EnergyParticles({ active }: { active: boolean }) {
-  if (!active) return null;
+function EnergyParticles() {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
-      {Array.from({ length: 20 }).map((_, i) => (
+      {Array.from({ length: 16 }).map((_, i) => (
         <div
           key={i}
           className="absolute w-1 h-1 rounded-full"
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
+            left: `${10 + Math.random() * 80}%`,
+            top: `${10 + Math.random() * 80}%`,
             background: i % 3 === 0 ? "#f5a623" : i % 3 === 1 ? "#ff6b1a" : "#00d4ff",
-            animation: `particle-float ${1.5 + Math.random() * 2}s ease-out ${Math.random() * 2}s infinite`,
-            "--drift": `${(Math.random() - 0.5) * 60}px`,
+            animation: `particle-float ${1.5 + (i * 0.3)}s ease-out ${i * 0.15}s infinite`,
+            "--drift": `${(i % 2 === 0 ? 1 : -1) * (10 + i * 3)}px`,
           } as React.CSSProperties}
         />
       ))}
@@ -57,263 +33,230 @@ function EnergyParticles({ active }: { active: boolean }) {
   );
 }
 
-function AuraRing({ color, size, delay }: { color: string; size: number; delay: number }) {
-  return (
-    <div
-      className="absolute rounded-full border pointer-events-none"
-      style={{
-        width: size,
-        height: size,
-        borderColor: color,
-        borderWidth: 1,
-        opacity: 0.3,
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        animation: `aura-pulse ${2 + delay}s ease-in-out ${delay}s infinite`,
-      }}
-    />
-  );
-}
+function UploadSlot({
+  slot,
+  label,
+  color,
+  onChange,
+}: {
+  slot: CharSlot;
+  label: string;
+  color: string;
+  onChange: (data: CharSlot) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
 
-type Character = (typeof CHARACTERS)[0];
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      onChange({ ...slot, previewUrl: result, b64: result });
+    };
+    reader.readAsDataURL(file);
+  };
 
-function CharacterCard({ char, selected, onSelect }: { char: Character; selected: boolean; onSelect: () => void }) {
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
+
   return (
-    <div
-      className={`char-slot rounded-xl p-4 cursor-pointer relative ${selected ? "selected" : ""}`}
-      onClick={onSelect}
-      style={selected ? { borderColor: char.color, boxShadow: `0 0 25px ${char.color}40` } : {}}
-    >
-      {selected && (
-        <div
-          className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{ background: char.color, color: "#0a0e1a" }}
-        >
-          ✓
-        </div>
-      )}
-      <div className="text-3xl mb-2 text-center">{char.emoji}</div>
-      <div className="font-bangers text-lg text-center tracking-wider mb-1" style={{ color: char.color }}>
-        {char.name}
-      </div>
-      <div className="text-xs text-center text-muted-foreground font-rajdhani mb-2">{char.type}</div>
-      <div className="h-1 rounded w-full bg-white/10 overflow-hidden">
-        <div
-          className="h-full rounded transition-all duration-1000"
-          style={{
-            width: `${Math.min((char.power / 99999) * 100, 100)}%`,
-            background: `linear-gradient(90deg, ${char.color}, ${char.color}aa)`,
-            boxShadow: `0 0 8px ${char.color}80`,
-          }}
+    <div className="flex flex-col gap-3 flex-1">
+      <label className="font-bangers text-lg tracking-wider" style={{ color }}>
+        {label}
+      </label>
+
+      {/* Image drop zone */}
+      <div
+        className="char-slot rounded-2xl relative overflow-hidden cursor-pointer"
+        style={{
+          aspectRatio: "1",
+          minHeight: 200,
+          borderColor: slot.previewUrl ? color : undefined,
+          boxShadow: slot.previewUrl ? `0 0 25px ${color}40` : undefined,
+          borderStyle: slot.previewUrl ? "solid" : undefined,
+        }}
+        onClick={() => inputRef.current?.click()}
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        {slot.previewUrl ? (
+          <>
+            <img
+              src={slot.previewUrl}
+              alt={slot.name || label}
+              className="w-full h-full object-cover"
+            />
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+              style={{ background: "rgba(0,0,0,0.7)" }}
+            >
+              <Icon name="RefreshCw" size={24} style={{ color }} />
+              <span className="font-bangers text-sm mt-2 tracking-wider" style={{ color }}>
+                CHANGE
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: `${color}15`, border: `2px dashed ${color}50` }}
+            >
+              <Icon name="Upload" size={28} style={{ color: `${color}80` }} />
+            </div>
+            <div className="text-center">
+              <div className="font-bangers text-base tracking-wider" style={{ color: `${color}80` }}>
+                DROP IMAGE
+              </div>
+              <div className="text-xs text-muted-foreground font-rajdhani mt-1">
+                or click to browse
+              </div>
+            </div>
+          </div>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleChange}
         />
       </div>
-      <div className="text-xs text-center mt-1 font-rajdhani" style={{ color: char.color }}>
-        PL: {char.power.toLocaleString()}
-      </div>
+
+      {/* Name input */}
+      <input
+        type="text"
+        placeholder="Character name..."
+        value={slot.name}
+        onChange={(e) => onChange({ ...slot, name: e.target.value })}
+        className="w-full px-4 py-3 rounded-xl font-rajdhani font-semibold text-base outline-none transition-all"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: `1px solid ${slot.name ? color + "60" : "rgba(255,255,255,0.1)"}`,
+          color: slot.name ? color : "rgba(255,255,255,0.5)",
+        }}
+      />
     </div>
   );
 }
 
-function FusionCanvas({ char1, char2, onReady }: { char1: Character; char2: Character; onReady: (dataUrl: string) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    canvas.width = 600;
-    canvas.height = 600;
-
-    const bg = ctx.createRadialGradient(300, 300, 0, 300, 300, 300);
-    bg.addColorStop(0, "#1a1230");
-    bg.addColorStop(0.5, "#0f1020");
-    bg.addColorStop(1, "#060810");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, 600, 600);
-
-    const drawAura = (cx: number, cy: number, color: string, rings: number) => {
-      for (let r = rings; r > 0; r--) {
-        const grad = ctx.createRadialGradient(cx, cy, r * 20, cx, cy, r * 40);
-        grad.addColorStop(0, color + "30");
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r * 40, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    };
-
-    drawAura(200, 300, char1.color, 3);
-    drawAura(400, 300, char2.color, 3);
-
-    const fusionGrad = ctx.createRadialGradient(300, 250, 0, 300, 250, 200);
-    fusionGrad.addColorStop(0, "rgba(245,166,35,0.3)");
-    fusionGrad.addColorStop(0.4, "rgba(255,107,26,0.15)");
-    fusionGrad.addColorStop(1, "transparent");
-    ctx.fillStyle = fusionGrad;
-    ctx.fillRect(0, 0, 600, 600);
-
-    const drawLightning = (x1: number, y1: number, x2: number, y2: number, color: string) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = color;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      const segments = 8;
-      for (let i = 1; i <= segments; i++) {
-        const px = x1 + ((x2 - x1) * i) / segments + (Math.random() - 0.5) * 30;
-        const py = y1 + ((y2 - y1) * i) / segments + (Math.random() - 0.5) * 30;
-        ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    };
-
-    for (let i = 0; i < 6; i++) {
-      drawLightning(
-        100 + Math.random() * 100, 100 + Math.random() * 400,
-        400 + Math.random() * 100, 100 + Math.random() * 400,
-        i % 2 === 0 ? char1.color : char2.color
-      );
-    }
-
-    ctx.font = "bold 120px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = char1.color + "cc";
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = char1.color;
-    ctx.fillText(char1.emoji, 160, 280);
-
-    ctx.fillStyle = char2.color + "cc";
-    ctx.shadowColor = char2.color;
-    ctx.fillText(char2.emoji, 440, 280);
-    ctx.shadowBlur = 0;
-
-    ctx.font = "bold 72px Arial";
-    ctx.fillStyle = "rgba(245,166,35,0.9)";
-    ctx.shadowBlur = 30;
-    ctx.shadowColor = "#f5a623";
-    ctx.fillText("⚡", 300, 270);
-    ctx.shadowBlur = 0;
-
-    const fusionName = getFusionName(char1.name, char2.name);
-    const fusedPower = Math.floor((char1.power + char2.power) * 1.5);
-
-    ctx.font = "bold 52px Impact, Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#f5a623";
-    ctx.shadowBlur = 25;
-    ctx.shadowColor = "#f5a623";
-    ctx.fillText(fusionName.toUpperCase(), 300, 420);
-    ctx.shadowBlur = 0;
-
-    ctx.font = "bold 22px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    ctx.fillText(`POWER LEVEL: ${fusedPower.toLocaleString()}`, 300, 470);
-
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "rgba(245,166,35,0.5)";
-    ctx.fillText(`${char1.name} × ${char2.name}`, 300, 510);
-
-    const border = ctx.createLinearGradient(0, 0, 600, 600);
-    border.addColorStop(0, char1.color);
-    border.addColorStop(0.5, "#f5a623");
-    border.addColorStop(1, char2.color);
-    ctx.strokeStyle = border;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(8, 8, 584, 584);
-
-    onReady(canvas.toDataURL("image/png"));
-  }, [char1, char2, onReady]);
-
-  return <canvas ref={canvasRef} style={{ display: "none" }} />;
-}
-
-type Page = "home" | "generator";
-
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
-  const [char1, setChar1] = useState<Character | null>(null);
-  const [char2, setChar2] = useState<Character | null>(null);
-  const [fusionResult, setFusionResult] = useState<{ name: string; power: number; traits: string[] } | null>(null);
+
+  const [slot1, setSlot1] = useState<CharSlot>({ name: "", previewUrl: null, b64: null });
+  const [slot2, setSlot2] = useState<CharSlot>({ name: "", previewUrl: null, b64: null });
+
   const [fusing, setFusing] = useState(false);
-  const [fusionImageUrl, setFusionImageUrl] = useState<string | null>(null);
-  const [powerProgress, setPowerProgress] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [result, setResult] = useState<{
+    imageB64: string;
+    fusionName: string;
+    powerLevel: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCharSelect = (char: Character) => {
-    if (char1?.id === char.id) { setChar1(null); return; }
-    if (char2?.id === char.id) { setChar2(null); return; }
-    if (!char1) { setChar1(char); return; }
-    if (!char2) { setChar2(char); return; }
-    setChar2(char);
-  };
-
-  const isSelected = (id: number) => char1?.id === id || char2?.id === id;
-
-  const handleFuse = () => {
-    if (!char1 || !char2) return;
-    setFusing(true);
-    setFusionResult(null);
-    setFusionImageUrl(null);
-    setPowerProgress(0);
-
-    let prog = 0;
-    const interval = setInterval(() => {
-      prog += Math.random() * 15;
-      if (prog >= 100) { prog = 100; clearInterval(interval); }
-      setPowerProgress(Math.min(prog, 100));
-    }, 80);
-
-    setTimeout(() => {
-      const name = getFusionName(char1.name, char2.name);
-      const power = Math.floor((char1.power + char2.power) * 1.5);
-      const traits = [...char1.traits.slice(0, 2), ...char2.traits.slice(0, 2)];
-      setFusionResult({ name, power, traits });
-      setFusing(false);
-    }, 2000);
-  };
-
-  const handleCanvasReady = useCallback((dataUrl: string) => {
-    setFusionImageUrl(dataUrl);
-  }, []);
-
-  const handleDownload = () => {
-    if (!fusionImageUrl || !fusionResult) return;
-    const a = document.createElement("a");
-    a.href = fusionImageUrl;
-    a.download = `fusion_${fusionResult.name.toLowerCase()}.png`;
-    a.click();
-  };
+  const canFuse = slot1.name.trim() && slot2.name.trim();
 
   const reset = () => {
-    setChar1(null);
-    setChar2(null);
-    setFusionResult(null);
-    setFusionImageUrl(null);
-    setPowerProgress(0);
+    setSlot1({ name: "", previewUrl: null, b64: null });
+    setSlot2({ name: "", previewUrl: null, b64: null });
+    setResult(null);
+    setError(null);
+    setProgress(0);
+    setProgressMsg("");
+  };
+
+  const handleFuse = async () => {
+    if (!canFuse || fusing) return;
+    setFusing(true);
+    setResult(null);
+    setError(null);
+    setProgress(0);
+
+    const msgs = [
+      "Analyzing battle power...",
+      "Merging ki signatures...",
+      "Synchronizing auras...",
+      "Fusing DNA sequences...",
+      "Generating fusion form...",
+      "Applying final touches...",
+    ];
+    let msgIdx = 0;
+    setProgressMsg(msgs[0]);
+
+    const progInterval = setInterval(() => {
+      setProgress((p) => {
+        const next = p + (Math.random() * 8 + 2);
+        if (next >= 90) { clearInterval(progInterval); return 90; }
+        return next;
+      });
+      msgIdx = Math.min(msgIdx + 1, msgs.length - 1);
+      setProgressMsg(msgs[msgIdx]);
+    }, 1500);
+
+    try {
+      const res = await fetch(FUSE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name1: slot1.name.trim(),
+          name2: slot2.name.trim(),
+          image1: slot1.b64 || "",
+          image2: slot2.b64 || "",
+        }),
+      });
+
+      clearInterval(progInterval);
+      setProgress(100);
+
+      if (!res.ok) throw new Error("Fusion failed — try again!");
+      const data = await res.json();
+
+      setTimeout(() => {
+        setResult({
+          imageB64: data.fusionImageB64,
+          fusionName: data.fusionName,
+          powerLevel: data.powerLevel,
+        });
+        setFusing(false);
+      }, 400);
+    } catch (err: unknown) {
+      clearInterval(progInterval);
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setFusing(false);
+      setProgress(0);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!result) return;
+    const a = document.createElement("a");
+    a.href = result.imageB64;
+    a.download = `fusion_${result.fusionName.toLowerCase().replace(/\s/g, "_")}.jpg`;
+    a.click();
   };
 
   const goGenerator = () => { reset(); setPage("generator"); };
 
   return (
     <div className="min-h-screen energy-bg noise font-rajdhani">
-      {char1 && char2 && fusionResult && (
-        <FusionCanvas char1={char1} char2={char2} onReady={handleCanvasReady} />
-      )}
-
       {/* NAV */}
       <nav
         className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-white/5"
-        style={{ background: "rgba(6,8,16,0.85)", backdropFilter: "blur(20px)" }}
+        style={{ background: "rgba(6,8,16,0.9)", backdropFilter: "blur(20px)" }}
       >
         <div
-          className="font-bangers text-2xl tracking-widest cursor-pointer text-ki-glow"
-          style={{ color: "#f5a623" }}
+          className="font-bangers text-2xl tracking-widest cursor-pointer"
+          style={{ color: "#f5a623", textShadow: "0 0 20px rgba(245,166,35,0.5)" }}
           onClick={() => setPage("home")}
         >
           ⚡ FUSIONZ
@@ -331,94 +274,89 @@ export default function Index() {
         </div>
       </nav>
 
-      {/* ──────────── HOME ──────────── */}
+      {/* ─── HOME ─── */}
       {page === "home" && (
         <div>
           <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
             <div
               className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${HERO_IMAGE})`, opacity: 0.18, backgroundPosition: "center 30%" }}
+              style={{ backgroundImage: `url(${HERO_IMAGE})`, opacity: 0.15, backgroundPosition: "center 30%" }}
             />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
+
             <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
               <div
-                className="inline-block font-bangers text-sm tracking-[0.3em] mb-6 px-4 py-1 rounded-full border"
-                style={{ borderColor: "rgba(245,166,35,0.4)", color: "#f5a623", background: "rgba(245,166,35,0.08)" }}
+                className="inline-block font-bangers text-xs tracking-[0.4em] mb-6 px-4 py-1.5 rounded-full border"
+                style={{ borderColor: "rgba(245,166,35,0.4)", color: "#f5a623", background: "rgba(245,166,35,0.07)" }}
               >
-                ⚡ THE ULTIMATE FUSION EXPERIENCE
+                ⚡ AI-POWERED CHARACTER FUSION
               </div>
+
               <h1
                 className="font-bangers leading-none mb-6 animate-slide-up"
-                style={{ fontSize: "clamp(4rem,12vw,8rem)", color: "#f5a623", letterSpacing: "0.05em", textShadow: "0 0 30px rgba(245,166,35,0.8), 0 0 60px rgba(245,166,35,0.3)" }}
+                style={{
+                  fontSize: "clamp(4rem,13vw,9rem)",
+                  color: "#f5a623",
+                  letterSpacing: "0.04em",
+                  textShadow: "0 0 40px rgba(245,166,35,0.7), 0 0 80px rgba(245,166,35,0.3)",
+                }}
               >
-                FUSE ANY<br />
-                <span style={{ color: "#ff6b1a", textShadow: "0 0 30px rgba(255,107,26,0.8)" }}>CHARACTER</span>
+                UPLOAD.
+                <br />
+                <span style={{ color: "#ff6b1a", textShadow: "0 0 40px rgba(255,107,26,0.7)" }}>
+                  FUSE.
+                </span>
+                <br />
+                DOWNLOAD.
               </h1>
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto font-rajdhani font-medium animate-slide-up" style={{ animationDelay: "0.1s" }}>
-                Combine your favorite anime warriors into one unstoppable fusion fighter. Download your creation and share the power.
+
+              <p
+                className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto font-rajdhani font-medium animate-slide-up"
+                style={{ animationDelay: "0.1s" }}
+              >
+                Upload photos of any two characters — our AI will fuse them into one epic warrior.
+                No API key. No sign-up. Pure power.
               </p>
+
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up" style={{ animationDelay: "0.2s" }}>
                 <button className="ki-btn px-10 py-4 rounded-xl text-xl font-bangers tracking-wider" onClick={goGenerator}>
-                  🔥 START FUSING
-                </button>
-                <button
-                  className="ki-btn-outline px-8 py-4 rounded-xl text-lg font-bangers tracking-wider"
-                  onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}
-                >
-                  How It Works
+                  🔥 FUSE NOW
                 </button>
               </div>
             </div>
-            <div className="absolute animate-ki-float pointer-events-none" style={{ bottom: "15%", left: "8%", opacity: 0.4 }}>
-              <div className="w-20 h-20 rounded-full" style={{ background: "radial-gradient(circle, #f5a623, transparent)", filter: "blur(10px)" }} />
+
+            <div className="absolute animate-ki-float pointer-events-none" style={{ bottom: "15%", left: "8%", opacity: 0.35 }}>
+              <div className="w-24 h-24 rounded-full" style={{ background: "radial-gradient(circle, #f5a623, transparent)", filter: "blur(15px)" }} />
             </div>
-            <div className="absolute animate-ki-float pointer-events-none" style={{ top: "20%", right: "8%", opacity: 0.3, animationDelay: "1s" }}>
-              <div className="w-16 h-16 rounded-full" style={{ background: "radial-gradient(circle, #8b5cf6, transparent)", filter: "blur(10px)" }} />
+            <div className="absolute animate-ki-float pointer-events-none" style={{ top: "20%", right: "8%", opacity: 0.25, animationDelay: "1.2s" }}>
+              <div className="w-20 h-20 rounded-full" style={{ background: "radial-gradient(circle, #8b5cf6, transparent)", filter: "blur(12px)" }} />
             </div>
           </section>
 
-          <section id="how" className="py-24 px-4">
+          {/* HOW IT WORKS */}
+          <section className="py-24 px-4">
             <div className="max-w-5xl mx-auto">
-              <h2 className="font-bangers text-5xl text-center mb-4 tracking-wider" style={{ color: "#f5a623" }}>HOW IT WORKS</h2>
-              <p className="text-center text-muted-foreground mb-16 font-rajdhani text-lg">Three steps to unleash the ultimate power</p>
+              <h2 className="font-bangers text-5xl text-center mb-3 tracking-wider" style={{ color: "#f5a623" }}>HOW IT WORKS</h2>
+              <p className="text-center text-muted-foreground mb-14 font-rajdhani text-lg">Three steps to the ultimate fusion</p>
               <div className="grid md:grid-cols-3 gap-6">
                 {[
-                  { step: "01", title: "Choose Fighters", desc: "Select two characters from our roster of legendary anime warriors.", icon: "Users", color: "#f5a623" },
-                  { step: "02", title: "Fuse Their Power", desc: "Watch as their ki merges in an explosive fusion sequence.", icon: "Zap", color: "#ff6b1a" },
-                  { step: "03", title: "Download & Share", desc: "Get your unique fusion character card as a downloadable PNG.", icon: "Download", color: "#8b5cf6" },
+                  { step: "01", title: "Upload 2 Photos", desc: "Upload any photos of characters you want to fuse — real people, anime, games, anything.", icon: "Upload", color: "#f5a623" },
+                  { step: "02", title: "Name Them", desc: "Type in each character's name so the AI understands who it's fusing.", icon: "Zap", color: "#ff6b1a" },
+                  { step: "03", title: "Download Result", desc: "Get a unique AI-generated fusion character image — download it instantly as a JPEG.", icon: "Download", color: "#8b5cf6" },
                 ].map(({ step, title, desc, icon, color }) => (
-                  <div key={step} className="ki-card rounded-2xl p-8 text-center relative overflow-hidden">
-                    <div className="font-bangers text-7xl absolute -top-2 -right-2 opacity-10" style={{ color }}>{step}</div>
-                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: `${color}20`, border: `1px solid ${color}50` }}>
-                      <Icon name={icon as "Users"} size={24} style={{ color }} />
+                  <div key={step} className="ki-card rounded-2xl p-8 text-center relative overflow-hidden group">
+                    <div className="font-bangers text-8xl absolute -top-4 -right-2 opacity-[0.07] group-hover:opacity-[0.12] transition-opacity" style={{ color }}>{step}</div>
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: `${color}18`, border: `1px solid ${color}40` }}>
+                      <Icon name={icon as "Upload"} size={24} style={{ color }} />
                     </div>
                     <h3 className="font-bangers text-2xl tracking-wider mb-3" style={{ color }}>{title}</h3>
-                    <p className="text-muted-foreground font-rajdhani">{desc}</p>
+                    <p className="text-muted-foreground font-rajdhani leading-relaxed">{desc}</p>
                   </div>
                 ))}
               </div>
-            </div>
-          </section>
-
-          <section className="py-16 px-4 border-t border-white/5">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="font-bangers text-4xl text-center mb-2 tracking-wider" style={{ color: "#f5a623" }}>THE ROSTER</h2>
-              <p className="text-center text-muted-foreground mb-10 font-rajdhani">8 legendary warriors await fusion</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {CHARACTERS.map((c) => (
-                  <div key={c.id} className="ki-card rounded-xl p-4 text-center">
-                    <div className="text-4xl mb-2">{c.emoji}</div>
-                    <div className="font-bangers text-lg tracking-wider" style={{ color: c.color }}>{c.name}</div>
-                    <div className="text-xs text-muted-foreground font-rajdhani">{c.type}</div>
-                    <div className="mt-2 h-1 rounded bg-white/10 overflow-hidden">
-                      <div className="h-full rounded" style={{ width: `${Math.min((c.power / 99999) * 100, 100)}%`, background: c.color }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="text-center mt-12">
+              <div className="text-center mt-14">
                 <button className="ki-btn px-12 py-4 rounded-xl text-2xl font-bangers tracking-wider" onClick={goGenerator}>
-                  ⚡ FUSE NOW
+                  ⚡ START FUSING
                 </button>
               </div>
             </div>
@@ -426,96 +364,71 @@ export default function Index() {
         </div>
       )}
 
-      {/* ──────────── GENERATOR ──────────── */}
+      {/* ─── GENERATOR ─── */}
       {page === "generator" && (
-        <div className="pt-24 pb-16 px-4">
-          <div className="max-w-5xl mx-auto">
-            <h1 className="font-bangers text-5xl md:text-6xl text-center mb-2 tracking-wider animate-slide-up" style={{ color: "#f5a623" }}>
+        <div className="pt-24 pb-20 px-4">
+          <div className="max-w-3xl mx-auto">
+            <h1
+              className="font-bangers text-5xl md:text-6xl text-center mb-2 tracking-wider animate-slide-up"
+              style={{ color: "#f5a623", textShadow: "0 0 30px rgba(245,166,35,0.5)" }}
+            >
               FUSION GENERATOR
             </h1>
             <p className="text-center text-muted-foreground mb-10 font-rajdhani text-lg">
-              {!char1 && !char2 && "Select your first fighter"}
-              {char1 && !char2 && `${char1.name} selected — pick the second fighter`}
-              {char1 && char2 && !fusionResult && `${char1.name} × ${char2.name} — ready to fuse!`}
-              {fusionResult && `Fusion complete: ${fusionResult.name}!`}
+              Upload two character photos and name them — AI does the rest
             </p>
 
-            {/* Selected preview */}
-            {(char1 || char2) && (
-              <div className="flex items-center justify-center gap-6 mb-8 animate-fade-in-scale">
-                <div
-                  className="flex items-center gap-3 px-5 py-3 rounded-xl border"
-                  style={{ borderColor: char1 ? `${char1.color}50` : "rgba(255,255,255,0.1)", background: char1 ? `${char1.color}10` : "rgba(255,255,255,0.03)" }}
-                >
-                  <span className="text-2xl">{char1 ? char1.emoji : "❓"}</span>
-                  <span className="font-bangers text-xl tracking-wider" style={{ color: char1?.color || "#555" }}>
-                    {char1?.name || "—"}
-                  </span>
-                </div>
-                <div className="vs-divider">×</div>
-                <div
-                  className="flex items-center gap-3 px-5 py-3 rounded-xl border"
-                  style={{ borderColor: char2 ? `${char2.color}50` : "rgba(255,255,255,0.1)", background: char2 ? `${char2.color}10` : "rgba(255,255,255,0.03)" }}
-                >
-                  <span className="text-2xl">{char2 ? char2.emoji : "❓"}</span>
-                  <span className="font-bangers text-xl tracking-wider" style={{ color: char2?.color || "#555" }}>
-                    {char2?.name || "—"}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Result card */}
-            {fusionResult && (
-              <div className="result-card rounded-2xl p-8 mb-10 animate-fade-in-scale relative overflow-hidden">
-                <EnergyParticles active={true} />
-                <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-                  <div className="relative flex-shrink-0 w-48 h-48 flex items-center justify-center">
-                    <AuraRing color={char1!.color} size={240} delay={0} />
-                    <AuraRing color={char2!.color} size={200} delay={0.5} />
-                    <AuraRing color="#f5a623" size={160} delay={1} />
-                    {fusionImageUrl ? (
-                      <img
-                        src={fusionImageUrl}
-                        alt={fusionResult.name}
-                        className="w-40 h-40 rounded-xl object-cover relative z-10"
-                        style={{ boxShadow: `0 0 40px ${char1!.color}40, 0 0 80px ${char2!.color}20` }}
-                      />
-                    ) : (
-                      <div className="w-40 h-40 rounded-xl flex items-center justify-center relative z-10 text-6xl animate-aura"
-                        style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(245,166,35,0.3)" }}>
-                        ⚡
-                      </div>
-                    )}
+            {/* RESULT */}
+            {result && (
+              <div className="result-card rounded-2xl p-6 mb-10 animate-fade-in-scale relative overflow-hidden">
+                <EnergyParticles />
+                <div className="relative z-10 flex flex-col items-center gap-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 rounded-2xl" style={{ background: "radial-gradient(circle, rgba(245,166,35,0.2), transparent)", filter: "blur(20px)" }} />
+                    <img
+                      src={result.imageB64}
+                      alt={result.fusionName}
+                      className="w-full max-w-sm rounded-2xl relative z-10 mx-auto block"
+                      style={{ boxShadow: "0 0 60px rgba(245,166,35,0.3), 0 20px 60px rgba(0,0,0,0.5)" }}
+                    />
                   </div>
-                  <div className="flex-1">
-                    <div className="font-bangers text-5xl md:text-6xl tracking-widest mb-1" style={{ color: "#f5a623", textShadow: "0 0 20px rgba(245,166,35,0.6)" }}>
-                      {fusionResult.name.toUpperCase()}
+
+                  <div className="text-center w-full">
+                    <div
+                      className="font-bangers text-5xl tracking-widest mb-1"
+                      style={{ color: "#f5a623", textShadow: "0 0 25px rgba(245,166,35,0.7)" }}
+                    >
+                      {result.fusionName.toUpperCase()}
                     </div>
-                    <div className="text-muted-foreground font-rajdhani mb-4">Fusion of {char1!.name} & {char2!.name}</div>
-                    <div className="mb-4">
-                      <div className="flex justify-between text-sm font-rajdhani mb-1">
+                    <div className="text-muted-foreground font-rajdhani mb-4">
+                      Fusion of <span style={{ color: "#f5a623" }}>{slot1.name}</span> & <span style={{ color: "#ff6b1a" }}>{slot2.name}</span>
+                    </div>
+
+                    <div className="max-w-xs mx-auto mb-5">
+                      <div className="flex justify-between text-sm font-rajdhani mb-1.5">
                         <span style={{ color: "#f5a623" }}>POWER LEVEL</span>
-                        <span className="font-bold" style={{ color: "#f5a623" }}>{fusionResult.power.toLocaleString()}</span>
+                        <span className="font-bold" style={{ color: "#f5a623" }}>{result.powerLevel.toLocaleString()}</span>
                       </div>
-                      <div className="h-3 rounded bg-white/10 overflow-hidden">
-                        <div className="power-bar h-full rounded" style={{ width: `${Math.min((fusionResult.power / 150000) * 100, 100)}%` }} />
+                      <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="power-bar h-full rounded-full"
+                          style={{ width: `${Math.min((result.powerLevel / 99999) * 100, 100)}%` }}
+                        />
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      {fusionResult.traits.map((t) => (
-                        <span key={t} className="px-3 py-1 rounded-full text-xs font-rajdhani font-semibold"
-                          style={{ background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.3)", color: "#f5a623" }}>
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-3 flex-wrap">
-                      <button className="ki-btn px-6 py-3 rounded-xl font-bangers tracking-wider flex items-center gap-2" onClick={handleDownload} disabled={!fusionImageUrl}>
-                        <Icon name="Download" size={18} />
+
+                    <div className="flex gap-3 justify-center flex-wrap">
+                      <button
+                        className="ki-btn px-7 py-3 rounded-xl font-bangers tracking-wider flex items-center gap-2 text-lg"
+                        onClick={handleDownload}
+                      >
+                        <Icon name="Download" size={20} />
                         DOWNLOAD
                       </button>
-                      <button className="ki-btn-outline px-6 py-3 rounded-xl font-bangers tracking-wider" onClick={reset}>
+                      <button
+                        className="ki-btn-outline px-7 py-3 rounded-xl font-bangers tracking-wider text-lg"
+                        onClick={reset}
+                      >
                         🔄 NEW FUSION
                       </button>
                     </div>
@@ -524,54 +437,77 @@ export default function Index() {
               </div>
             )}
 
-            {/* Fuse button / progress */}
-            {char1 && char2 && !fusionResult && (
-              <div className="text-center mb-10">
-                {fusing ? (
-                  <div className="animate-fade-in-scale">
-                    <div className="font-bangers text-2xl mb-4 tracking-wider animate-aura" style={{ color: "#f5a623" }}>
-                      ⚡ FUSION IN PROGRESS...
-                    </div>
-                    <div className="max-w-sm mx-auto">
-                      <div className="h-4 rounded-full bg-white/10 overflow-hidden mb-2">
-                        <div className="power-bar h-full rounded-full transition-all duration-300" style={{ width: `${powerProgress}%` }} />
-                      </div>
-                      <div className="text-sm text-muted-foreground font-rajdhani">
-                        Merging ki energy... {Math.round(powerProgress)}%
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <button className="ki-btn px-14 py-5 rounded-xl text-2xl font-bangers tracking-wider animate-aura" onClick={handleFuse}>
-                    ⚡ FUSE! ⚡
-                  </button>
-                )}
-              </div>
-            )}
+            {/* UPLOAD FORM */}
+            {!result && (
+              <>
+                <div className="flex flex-col sm:flex-row gap-6 mb-8">
+                  <UploadSlot slot={slot1} label="CHARACTER 1" color="#f5a623" onChange={setSlot1} />
 
-            {/* Character grid */}
-            {!fusionResult && (
-              <div>
-                <h3 className="font-bangers text-2xl tracking-wider mb-4" style={{ color: "rgba(245,166,35,0.7)" }}>SELECT FIGHTERS</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {CHARACTERS.map((char) => (
-                    <CharacterCard key={char.id} char={char} selected={isSelected(char.id)} onSelect={() => handleCharSelect(char)} />
-                  ))}
+                  <div className="flex sm:flex-col items-center justify-center gap-2 sm:gap-4 py-2">
+                    <div className="vs-divider text-3xl">×</div>
+                  </div>
+
+                  <UploadSlot slot={slot2} label="CHARACTER 2" color="#ff6b1a" onChange={setSlot2} />
                 </div>
-                {(char1 || char2) && (
-                  <div className="text-center mt-4">
-                    <button className="ki-btn-outline px-6 py-2 rounded-lg font-bangers text-sm" onClick={reset}>Clear Selection</button>
+
+                {/* Error */}
+                {error && (
+                  <div
+                    className="rounded-xl px-5 py-3 mb-6 font-rajdhani text-center"
+                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444" }}
+                  >
+                    ⚠️ {error}
                   </div>
                 )}
-              </div>
+
+                {/* Progress */}
+                {fusing && (
+                  <div className="mb-6 animate-fade-in-scale">
+                    <div
+                      className="font-bangers text-xl text-center mb-3 tracking-wider animate-aura"
+                      style={{ color: "#f5a623" }}
+                    >
+                      ⚡ {progressMsg}
+                    </div>
+                    <div className="h-4 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="power-bar h-full rounded-full transition-all duration-700"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <div className="text-center text-sm text-muted-foreground font-rajdhani mt-2">
+                      AI is generating your fusion... this takes ~30 seconds
+                    </div>
+                  </div>
+                )}
+
+                {/* Fuse button */}
+                <div className="text-center">
+                  <button
+                    className={`ki-btn px-14 py-5 rounded-xl text-2xl font-bangers tracking-wider ${!canFuse || fusing ? "opacity-40 cursor-not-allowed" : "animate-aura"}`}
+                    onClick={handleFuse}
+                    disabled={!canFuse || fusing}
+                  >
+                    {fusing ? "⚡ FUSING..." : "⚡ FUSE! ⚡"}
+                  </button>
+                  {!canFuse && !fusing && (
+                    <p className="text-muted-foreground text-sm font-rajdhani mt-3">
+                      {!slot1.name && !slot2.name ? "Upload photos and name both characters to begin" :
+                       !slot1.name ? "Name Character 1 to begin" :
+                       "Name Character 2 to begin"}
+                    </p>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
 
-      <footer className="border-t border-white/5 py-8 px-4 text-center">
+      {/* FOOTER */}
+      <footer className="border-t border-white/5 py-8 px-4 text-center mt-auto">
         <div className="font-bangers text-2xl tracking-widest mb-2" style={{ color: "#f5a623" }}>⚡ FUSIONZ</div>
-        <p className="text-muted-foreground text-sm font-rajdhani">The ultimate anime character fusion generator</p>
+        <p className="text-muted-foreground text-sm font-rajdhani">AI-powered character fusion — free, no sign-up needed</p>
       </footer>
     </div>
   );

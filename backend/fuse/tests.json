@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Fuse two named characters",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "name1": "Goku",
+        "name2": "Naruto",
+        "image1": "",
+        "image2": ""
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "fusionImageB64": "string",
+        "fusionName": "string",
+        "powerLevel": 0
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
